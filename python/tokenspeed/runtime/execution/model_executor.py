@@ -1301,8 +1301,14 @@ class ModelExecutor:
                 )
 
             with nvtx_range("output_d2h", color="green"):
-                output_tokens = output_tokens.to("cpu", non_blocking=True)
-                output_lengths = output_lengths.to("cpu", non_blocking=True)
+                packed = self.sampling_backend.get_packed_output_d2h(
+                    output_tokens, output_lengths
+                )
+                if packed is not None:
+                    output_tokens, output_lengths = packed
+                else:
+                    output_tokens = output_tokens.to("cpu", non_blocking=True)
+                    output_lengths = output_lengths.to("cpu", non_blocking=True)
 
                 if output_logprobs is not None:
                     output_logprobs = output_logprobs.to("cpu", non_blocking=True)
