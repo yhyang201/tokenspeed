@@ -1,0 +1,81 @@
+api_version: ci.tokenspeed.io/v1
+name: perf-qwen3.5-397b-a17b-nvfp4-random-tp8
+type: perf
+triggers:
+  - manual
+runner:
+  labels:
+    - b200-8gpu
+env:
+  CI: "true"
+install:
+  - bash test/ci_system/install_deps.sh
+server:
+  command: >-
+    ts serve
+    --model nvidia/Qwen3.5-397B-A17B-NVFP4
+    --host 0.0.0.0
+    --port 8000
+    --world-size 8
+    --gpu-memory-utilization 0.8
+    --moe-backend flashinfer_trtllm
+    --attention-backend trtllm
+    --load-format auto
+    --comm-fusion-max-num-tokens 4096
+    --max-model-len 262144
+    --kv-cache-dtype fp8_e4m3
+    --speculative-algorithm MTP
+    --speculative-draft-model-path nvidia/Qwen3.5-397B-A17B-NVFP4
+    --speculative-num-steps 3
+    --enable-cache-report
+    --weight-loader-prefetch-checkpoints
+  ready:
+    url: http://127.0.0.1:8000/readiness
+    timeout: 1800
+    interval: 10
+perf:
+  install:
+    - python3 -m uv venv --seed --clear /tmp/evalscope-perf && python3 -m uv pip install --python /tmp/evalscope-perf/bin/python 'evalscope[perf]'
+  command: >-
+    REPO_ROOT=$PWD &&
+    OUTPUTS_DIR=/tmp/tokenspeed-random-perf-tp8 &&
+    trap 'rm -rf "$OUTPUTS_DIR"' EXIT &&
+    rm -rf "$OUTPUTS_DIR" &&
+    MODEL=nvidia/Qwen3.5-397B-A17B-NVFP4 &&
+    URL=http://127.0.0.1:8000/v1/chat/completions &&
+    EVAL=/tmp/evalscope-perf/bin/evalscope &&
+    set +e &&
+    PERF_STATUS=0 &&
+    for spec in "in1k_out1k 1024 1024" "in1k_out8k 1024 8192" "in8k_out1k 8192 1024" "in4k_out4k 4096 4096"; do
+    set -- $spec;
+    name=$1; in_len=$2; out_len=$3;
+    echo "==================================================";
+    echo ">>> case=${name}  in_len=${in_len}  out_len=${out_len}";
+    echo "==================================================";
+    "$EVAL" perf
+    --parallel 1 8 32 64
+    --number 5 20 100 200
+    --model "$MODEL"
+    --url "$URL"
+    --api openai
+    --dataset random
+    --max-tokens "$out_len"
+    --min-tokens "$out_len"
+    --prefix-length 0
+    --min-prompt-length "$in_len"
+    --max-prompt-length "$in_len"
+    --tokenizer-path "$MODEL"
+    --warmup-num 0.1
+    --extra-args '{"ignore_eos": true}'
+    --name "tp8_${name}"
+    --outputs-dir "$OUTPUTS_DIR/tp8/${name}"
+    --no-timestamp;
+    rc=$?;
+    if [ $rc -ne 0 ] && [ $PERF_STATUS -eq 0 ]; then PERF_STATUS=$rc; fi;
+    done;
+    python3 "$REPO_ROOT/test/random_benchmark/tokenspeed/collect_outputs.py" "$OUTPUTS_DIR";
+    PARSE_STATUS=$?;
+    if [ "$PERF_STATUS" -ne 0 ]; then exit "$PERF_STATUS"; fi;
+    exit "$PARSE_STATUS"
+report:
+  github_step_summary: true
