@@ -645,8 +645,12 @@ class AsyncLLM(SchedulerControlClient, EngineClient):
         # We cannot add signal handler when the tokenizer manager is not in
         # the main thread due to the CPython limitation.
         if threading.current_thread() is threading.main_thread():
-            signal_handler = SignalHandler(self)
+            signal_handler = SignalHandler(self, loop=loop)
             loop.add_signal_handler(signal.SIGTERM, signal_handler.signal_handler)
+            loop.add_signal_handler(
+                signal.SIGUSR1, signal_handler.start_profile_handler
+            )
+            loop.add_signal_handler(signal.SIGUSR2, signal_handler.stop_profile_handler)
         else:
             logger.warning(
                 "Signal handler is not added because the tokenizer manager is "
@@ -716,8 +720,9 @@ async def print_exception_wrapper(func):
 
 
 class SignalHandler:
-    def __init__(self, tokenizer_manager):
+    def __init__(self, tokenizer_manager, loop=None):
         self.tokenizer_manager = tokenizer_manager
+        self.loop = loop
 
     def signal_handler(self, signum=None, frame=None):
         logger.warning(
@@ -726,6 +731,28 @@ class SignalHandler:
             frame,
         )
         self.tokenizer_manager.gracefully_exit = True
+
+    def start_profile_handler(self):
+        logger.info("SIGUSR1 received, starting profiler...")
+        self.loop.create_task(self._start_profile())
+
+    def stop_profile_handler(self):
+        logger.info("SIGUSR2 received, stopping profiler...")
+        self.loop.create_task(self._stop_profile())
+
+    async def _start_profile(self):
+        try:
+            await self.tokenizer_manager.start_profile()
+            logger.info("Profiler started via SIGUSR1")
+        except Exception as e:
+            logger.error("Failed to start profiler via SIGUSR1: %s", e)
+
+    async def _stop_profile(self):
+        try:
+            await self.tokenizer_manager.stop_profile()
+            logger.info("Profiler stopped via SIGUSR2")
+        except Exception as e:
+            logger.error("Failed to stop profiler via SIGUSR2: %s", e)
 
 
 T = TypeVar("T")
