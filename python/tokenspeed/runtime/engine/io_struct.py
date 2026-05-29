@@ -762,6 +762,7 @@ class ProfileReq:
     num_steps: int | None = None
     activities: list[str] | None = None
     profile_by_stage: bool = False
+    decode_only: bool = False
     with_stack: bool | None = None
     record_shapes: bool | None = None
     profile_id: str | None = None

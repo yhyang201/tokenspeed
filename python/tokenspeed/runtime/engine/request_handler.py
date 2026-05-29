@@ -267,6 +267,7 @@ class RequestHandler:
         record_shapes: bool | None,
         profile_by_stage: bool,
         profile_id: str,
+        decode_only: bool = False,
     ) -> ProfileReqOutput:
         if self.profile_in_progress:
             return ProfileReqOutput(
@@ -292,7 +293,7 @@ class RequestHandler:
 
         if num_steps:
             if self.profile_by_stage:
-                self.profiler_target_prefill_ct = num_steps
+                self.profiler_target_prefill_ct = 0 if decode_only else num_steps
                 self.profiler_target_decode_ct = num_steps
                 self.profiler_prefill_ct = 0
                 self.profiler_decode_ct = 0
@@ -424,12 +425,16 @@ class RequestHandler:
         """
         if self.profile_by_stage and forward_mode is not None:
             if forward_mode.is_extend_or_mixed():
-                if self.profiler_prefill_ct == 0:
-                    self.start_profile(forward_mode)
-                self.profiler_prefill_ct += 1
-                if self.profiler_prefill_ct > self.profiler_target_prefill_ct:
-                    if self.profile_in_progress:
-                        self.stop_profile(stage=ForwardMode.EXTEND)
+                if (
+                    self.profiler_target_prefill_ct
+                    and self.profiler_target_prefill_ct > 0
+                ):
+                    if self.profiler_prefill_ct == 0:
+                        self.start_profile(forward_mode)
+                    self.profiler_prefill_ct += 1
+                    if self.profiler_prefill_ct > self.profiler_target_prefill_ct:
+                        if self.profile_in_progress:
+                            self.stop_profile(stage=ForwardMode.EXTEND)
             elif forward_mode.is_decode():
                 if self.profiler_decode_ct == 0:
                     if self.profile_in_progress:
@@ -464,6 +469,7 @@ class RequestHandler:
                 recv_req.record_shapes,
                 recv_req.profile_by_stage,
                 recv_req.profile_id,
+                recv_req.decode_only,
             )
             if not res.success or recv_req.profile_by_stage or recv_req.start_step:
                 return res

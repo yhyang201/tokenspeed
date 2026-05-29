@@ -247,6 +247,7 @@ class SchedulerControlClient:
         with_stack: bool | None = None,
         record_shapes: bool | None = None,
         profile_by_stage: bool = False,
+        decode_only: bool = False,
         profile_id: str | None = None,
     ):
         self.auto_create_handle_loop()
@@ -261,6 +262,7 @@ class SchedulerControlClient:
             with_stack=with_stack,
             record_shapes=record_shapes,
             profile_by_stage=profile_by_stage,
+            decode_only=decode_only,
             profile_id=profile_id or time.strftime("%Y%m%d-%H%M%S"),
         )
         return await self._execute_profile(req)

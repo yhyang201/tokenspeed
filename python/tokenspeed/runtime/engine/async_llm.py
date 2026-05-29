@@ -748,11 +748,12 @@ class SignalHandler:
             activities = activities_raw.split(",") if activities_raw else ["CPU", "GPU"]
             await self.tokenizer_manager.start_profile(
                 profile_by_stage=True,
+                decode_only=True,
                 num_steps=num_steps,
                 activities=activities,
             )
             logger.info(
-                "Profiler started via SIGUSR1 (by_stage, num_steps=%d, activities=%s)",
+                "Profiler started via SIGUSR1 (decode-only, num_steps=%d, activities=%s)",
                 num_steps,
                 activities,
             )
