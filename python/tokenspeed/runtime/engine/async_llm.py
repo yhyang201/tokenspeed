@@ -752,7 +752,7 @@ class SignalHandler:
                 activities=activities,
             )
             logger.info(
-                "Profiler started via SIGUSR1 (decode-only, num_steps=%d, activities=%s)",
+                "Profiler started via SIGUSR1 (by_stage, num_steps=%d, activities=%s)",
                 num_steps,
                 activities,
             )
