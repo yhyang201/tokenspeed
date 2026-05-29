@@ -745,13 +745,11 @@ class SignalHandler:
             num_steps_raw = os.environ.get("TOKENSPEED_PROFILE_NUM_STEPS")
             num_steps = int(num_steps_raw) if num_steps_raw else 5
             activities_raw = os.environ.get("TOKENSPEED_PROFILE_ACTIVITIES")
-            activities = activities_raw.split(",") if activities_raw else ["GPU"]
+            activities = activities_raw.split(",") if activities_raw else ["CPU", "GPU"]
             await self.tokenizer_manager.start_profile(
                 profile_by_stage=True,
                 num_steps=num_steps,
                 activities=activities,
-                with_stack=False,
-                record_shapes=False,
             )
             logger.info(
                 "Profiler started via SIGUSR1 (decode-only, num_steps=%d, activities=%s)",
